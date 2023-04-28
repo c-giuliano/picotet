@@ -458,7 +458,7 @@ bool alive_loop(State *g_state, int action) {
   /* Handle collisions. */
   if (collision) {
     /* If the collision happens too high on the screen, game over. */
-    if (collision - 1 <= TET_H) return 0;
+    if (collision - 1 <= TET_H + 1) return 0;
 
     bool did_clear = clear_check_from(g_state, collision - 1);
 
