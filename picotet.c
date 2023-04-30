@@ -194,10 +194,10 @@ void draw_tet(tet_t t, coord_t x, coord_t y, bool draw_flag) {
 
     if (in_target && curr_char != BORDER_CH) {
       if (draw_flag) {
-        printw("%c", TET_CH);
+        addch(TET_CH);
         continue;
       }
-      printw("%c", BLANK_CH);
+      addch(BLANK_CH);
     }
   }
 }
@@ -210,8 +210,8 @@ void put_tet(State *g_state) {
   g_state->drop_y = 0;
 
   /* Put cursor at the top of screen. */
-  mvinch(g_state->drop_x,
-         g_state->drop_y);
+  move(g_state->drop_x,
+       g_state->drop_y);
 
   /* Draw new tetromino. */
   draw_tet(t, g_state->drop_x,
@@ -329,7 +329,7 @@ void process_queue(State *g_state) {
 }
 
 bool row_full(coord_t row) {
-  for (coord_t x = 1; x < BOARD_WIDTH; ++x) {
+  for (coord_t x = 0; x < BOARD_WIDTH; ++x) {
     char ch = mvinch(row, BORDER_WIDTH + x) & A_CHARTEXT;
     if (ch != TET_CH) return 0;
   }
@@ -338,8 +338,8 @@ bool row_full(coord_t row) {
 
 void fill_row(coord_t row, char ch) {
   for (coord_t x = 0; x < BOARD_WIDTH; ++x) {
-    mvinch(row, BORDER_WIDTH + x);
-    printw("%c", ch);
+    move(row, BORDER_WIDTH + x);
+    addch(ch);
   }
 }
 
@@ -347,9 +347,9 @@ void shift_rows(coord_t start_row) {
   for (coord_t row = start_row; row > 1; --row) {
     for (coord_t x = 0; x < BOARD_WIDTH; ++x) {
       char above = mvinch(row - 1, BORDER_WIDTH + x) & A_CHARTEXT;
-      printw("%c", BLANK_CH);
-      mvinch(row, BORDER_WIDTH + x);
-      printw("%c", above);
+      addch(BLANK_CH);
+      move(row, BORDER_WIDTH + x);
+      addch(above);
     }
   }
 }
@@ -413,7 +413,7 @@ void draw_queue(State *g_state) {
 }
 
 void draw_score(score_t s, coord_t x, coord_t y) {
-  mvinch(y, x);
+  move(y, x);
   printw("Score: %u", s);
 }
 
@@ -460,7 +460,7 @@ bool alive_loop(State *g_state, int action) {
     /* If the collision happens too high on the screen, game over. */
     if (collision - 1 <= TET_H + 1) return 0;
 
-    bool did_clear = clear_check_from(g_state, collision - 1);
+    bool did_clear = clear_check_from(g_state, g_state->drop_y + TET_H);//clear_check_from(g_state, collision - 1);
 
     /* If any lines were cleared, draw the updated score. */
     if (did_clear) {
@@ -484,30 +484,30 @@ bool alive_loop(State *g_state, int action) {
 
 void game_over_screen(score_t s) {
   clear();
-  mvinch(0, 0);
+  move(0, 0);
   printw("GAME OVER\nSCORE %u", s);
-  mvinch(2, 0);
+  move(2, 0);
   printw("Press R to restart or any other key to exit.");
 }
 
 void draw_board() {
   for (coord_t y = 0; y <= BOARD_HEIGHT; ++y) {
     for (coord_t x = 1; x < BORDER_WIDTH; ++x) {
-      printw("%c", BORDER_CH);
+      addch(BORDER_CH);
     }
-    printw("|");
+    addch('|');
     for (coord_t x = 0; x < BOARD_WIDTH; ++x) {
       if (y == 0 || y == BOARD_HEIGHT) {
-        printw("%c", BORDER_CH);
+        addch(BORDER_CH);
       } else {
-        printw("%c", BLANK_CH);
+        addch(BLANK_CH);
       }
     }
-    printw("|");
+    addch('|');
     for (coord_t x = 1; x < BORDER_WIDTH; ++x) {
-      printw("%c", BORDER_CH);
+      addch(BORDER_CH);
     }
-    mvinch(y + 1, 0);
+    move(y + 1, 0);
   }
 }
 
