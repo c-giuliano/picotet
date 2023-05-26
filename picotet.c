@@ -37,9 +37,9 @@ typedef uint8_t rot_t;
 typedef struct {
   coord_t drop_x;         /* Current tetromino horizontal position */
   coord_t drop_y;         /* Current tetromino vertical position */
-  rot_t ru;             /* Rotation units (0ru to 3ru) */
-  score_t score;
-  int tets_queue[4];  /* Queue of upcoming tetrominos */
+  rot_t ru;               /* Rotation units (0ru to 3ru) */
+  score_t score;          /* Current player score */
+  int tets_queue[4];      /* Queue of upcoming tetrominos */
 } State;
 
 enum actions {
@@ -367,9 +367,10 @@ bool clear_check_from(State *g_state, int line_y) {
   bool did_clear = 0;
 
 /*
-  []   <- check up to here
-  []
-  [][] <- start here
+0      <- check up to here
+1 []
+2 []
+3 [][] <- start here
 ============
 */
 
