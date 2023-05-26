@@ -523,10 +523,11 @@ int main() {
   State *g_state;
 
 lbl_restart:
+
   clear();
 
-  /* Compound literal to init state. */
-  g_state = &(State) {
+  /* Using a compound literal to create initial state. */
+  g_state = &((State){
     .drop_x = 0,
     .drop_y = 0,
     .ru = 0,
@@ -537,7 +538,7 @@ lbl_restart:
       TET_I(4),
       TET_I(6),
     }
-  };
+  });
 
   /* Draw the board background. */
   draw_board();
@@ -558,61 +559,53 @@ lbl_restart:
     char user_input;
 
   lbl_cancel_poll:
+
     user_input = getch() & A_CHARTEXT;
 
     switch (user_input) {
-      /* Process movement */
+      /* Process left movement. */
       case 'h':
       case 'a':
-        goto lbl_move_left;
+        GAME_ONGOING = alive_loop(g_state, ACTION_MOVE_LEFT);
+        continue;
 
+      /* Process right movement. */
       case 'l':
       case 'd':
-        goto lbl_move_right;
+        GAME_ONGOING = alive_loop(g_state, ACTION_MOVE_RIGHT);
+        continue;
 
+      /* Process drop. */
       case 'j':
       case 's':
-        goto lbl_drop;
+        GAME_ONGOING = alive_loop(g_state, ACTION_DROP);
+        continue;
 
+      /* Process instant drop. */
       case 'k':
       case 'w':
-        goto lbl_instant_drop;
+        GAME_ONGOING = alive_loop(g_state, ACTION_INSTANT_DROP);
+        continue;
 
+      /* Process rotation. */
       case ' ':
       case 'f':
-        goto lbl_rotate;
+        GAME_ONGOING = alive_loop(g_state, ACTION_ROTATE);
+        continue;
 
+      /* Restart game. */
       case 'r':
         goto lbl_restart;
 
-      /* Quit game */
+      /* Quit game. */
       case 'c':
       case 'q':
         goto lbl_cleanup_and_exit;
 
-      /* Non-game inputs */
+      /* Handle non-game inputs. */
       default:
         goto lbl_cancel_poll;
     }
-
-  lbl_drop:
-    GAME_ONGOING = alive_loop(g_state, ACTION_DROP);
-    continue;
-
-  lbl_instant_drop:
-    GAME_ONGOING = alive_loop(g_state, ACTION_INSTANT_DROP);
-    continue;
-
-  lbl_rotate:
-    GAME_ONGOING = alive_loop(g_state, ACTION_ROTATE);
-    continue;
-
-  lbl_move_left:
-    GAME_ONGOING = alive_loop(g_state, ACTION_MOVE_LEFT);
-    continue;
-
-  lbl_move_right:
-    GAME_ONGOING = alive_loop(g_state, ACTION_MOVE_RIGHT);
   }
 
   /* Show game over screen. */
