@@ -1,18 +1,52 @@
 /*
+        .__              __          __
+ ______ |__| ____  _____/  |_  _____/  |_
+ \____ \|  _/ ___\/  _ \   ___/ __ \   __\
+ |  |_> |  \  \__(  <_> |  | \  ___/|  |
+ |   __/|__|\___  \____/|__|  \___  |__|
+ |__|           \/                \/
+
  * picotet
  * made by c 2023
  */
 
-#include <ncurses.h>
 #include <stdlib.h>
 #include <time.h>
 
+/* Non-web target. Use ncurses. */
+#ifndef __EMSCRIPTEN__
+
+#include <ncurses.h>
+
+/* Web target. Use javascript glue. */
+#else
+
+/* For some reason stdlib.h doesn't provide int types with emcc, so... */
+#include <stdint.h>
+
+typedef unsigned char  chtype;
+typedef unsigned char bool;
+
+/* Glue functions */
+extern void    addch   (chtype);
+extern void    clear   (void);
+extern void    move    (int, int);
+extern void    printw  (const char *, ...);
+extern void    refresh (void);
+extern chtype  mvinch  (int, int);
+
+#define NCURSES_ATTR_SHIFT 8
+#define NCURSES_BITS(mask,shift) ((mask) << ((shift) + NCURSES_ATTR_SHIFT))
+#define A_CHARTEXT (NCURSES_BITS(1U,0) - 1U)
+
+#endif
+
 typedef uint16_t tet_t;
 typedef uint32_t score_t;
-typedef uint8_t coord_t;
-typedef uint8_t rot_t;
+typedef uint8_t  coord_t;
+typedef uint8_t  rot_t;
 
-/* Config macros. */
+/* Config macros */
 #define TET_CH '@'
 #define BORDER_CH '|'
 #define BLANK_CH ' '
@@ -22,7 +56,7 @@ typedef uint8_t rot_t;
 #define HUD_OFFSET 2
 #define SCORE_INC 347
 
-/* Helper macros. */
+/* Helper macros */
 #define LEN(ar) (sizeof((ar))/sizeof((ar)[0]))
 #define LAST_OF(ar) (ar)[LEN((ar))-1]
 #define BIT_SIZE(x) (sizeof(x) * 8)
@@ -35,11 +69,11 @@ typedef uint8_t rot_t;
 #define TET_H 4
 
 typedef struct {
-  coord_t drop_x;         /* Current tetromino horizontal position */
-  coord_t drop_y;         /* Current tetromino vertical position */
-  rot_t ru;               /* Rotation units (0ru to 3ru) */
-  score_t score;          /* Current player score */
-  int tets_queue[4];      /* Queue of upcoming tetrominos */
+  coord_t drop_x;     /* Current tetromino horizontal position */
+  coord_t drop_y;     /* Current tetromino vertical position */
+  rot_t ru;           /* Rotation units (0ru to 3ru) */
+  score_t score;      /* Current player score */
+  int tets_queue[4];  /* Queue of upcoming tetrominos */
 } State;
 
 enum actions {
@@ -120,7 +154,7 @@ bool tet_solid(tet_t t, coord_t x, coord_t y) {
   return in_tet;
 }
 
-bool tet_collide_lat(tet_t t, coord_t x, coord_t y) {
+bool tet_collide_x(tet_t t, coord_t x, coord_t y) {
   int ix, iy, board_x;
 
   /* Handle tetromino collisions. */
@@ -133,12 +167,13 @@ bool tet_collide_lat(tet_t t, coord_t x, coord_t y) {
 
     board_x = ix + x - BORDER_WIDTH;
 
-    if ((board_x >= BOARD_WIDTH) ||
-        (board_x < 0)) return 1;
+    if ((board_x >= BOARD_WIDTH) || (board_x < 0)) {
+      return 1;
+    }
 
     bool colliding =
-      (mvinch(iy + y,
-              ix + x) & A_CHARTEXT) == TET_CH;
+      ((chtype)mvinch(iy + y,
+                      ix + x) & A_CHARTEXT) == TET_CH;
 
     if (colliding) return 1;
   }
@@ -146,13 +181,13 @@ bool tet_collide_lat(tet_t t, coord_t x, coord_t y) {
   return 0;
 }
 
-coord_t tet_collide_lon(tet_t t, coord_t x, coord_t y) {
+coord_t tet_collide_y(tet_t t, coord_t x, coord_t y) {
   int ix, iy;
   coord_t line_y;
 
-  /* Handle tetromino collisions. */
-  /* This goes from the bottom up because we prioritize lower
-  collisions for when we need to clear lines bottom to top. */
+  /* Handle tetromino collisions.
+   * This goes from the bottom up because we prioritize lower
+   * collisions for when we need to clear lines bottom to top. */
   for (int bit_n = BIT_SIZE(tet_t); bit_n >= 0; --bit_n) {
     ix = bit_n % TET_W;
     iy = bit_n / TET_W;
@@ -165,8 +200,8 @@ coord_t tet_collide_lon(tet_t t, coord_t x, coord_t y) {
     if (line_y > BOARD_HEIGHT - 1) return line_y + 1;
 
     bool colliding =
-      (mvinch(line_y,
-              ix + x) & A_CHARTEXT) == TET_CH;
+      ((chtype)mvinch(line_y,
+                      ix + x) & A_CHARTEXT) == TET_CH;
 
     if (colliding) return line_y + 1;
   }
@@ -187,8 +222,8 @@ void draw_tet(tet_t t, coord_t x, coord_t y, bool draw_flag) {
     ix = bit_n % TET_W;
     iy = bit_n / TET_W;
 
-    curr_char = mvinch(iy + y,
-                       ix + x) & A_CHARTEXT;
+    curr_char = ((chtype)mvinch(iy + y,
+                                ix + x)) & A_CHARTEXT;
 
     bool in_target = t & (1 << bit_n);
 
@@ -203,6 +238,7 @@ void draw_tet(tet_t t, coord_t x, coord_t y, bool draw_flag) {
 }
 
 void put_tet(State *g_state) {
+
   tet_t t = state_get_tet(g_state);
 
   /* Move focus to the top of the screen. */
@@ -210,15 +246,17 @@ void put_tet(State *g_state) {
   g_state->drop_y = 0;
 
   /* Put cursor at the top of screen. */
-  move(g_state->drop_x,
-       g_state->drop_y);
+  move(g_state->drop_y,
+       g_state->drop_x);
 
   /* Draw new tetromino. */
   draw_tet(t, g_state->drop_x,
               g_state->drop_y, 1);
+
 }
 
 coord_t drop_tet(State *g_state) {
+
   tet_t t = state_get_tet(g_state);
 
   /* Clear tetromino from current position. */
@@ -226,7 +264,7 @@ coord_t drop_tet(State *g_state) {
               g_state->drop_y, 0);
 
   /* Check for collisions. */
-  coord_t collision = tet_collide_lon(t, g_state->drop_x,
+  coord_t collision = tet_collide_y(t, g_state->drop_x,
                                        g_state->drop_y + 1);
 
   /* If collision occurs, redraw original tetromino, and return. */
@@ -241,9 +279,11 @@ coord_t drop_tet(State *g_state) {
             ++g_state->drop_y, 1);
 
   return collision;
+
 }
 
 bool rotate_tet(State *g_state) {
+
   /* Calculate new rotation (0ru to 3ru) */
   rot_t new_rotation = (g_state->ru + 1) % 4;
 
@@ -252,19 +292,19 @@ bool rotate_tet(State *g_state) {
            g_state->drop_x,
            g_state->drop_y, 0);
 
-  bool lat_collision = tet_collide_lat(
-      tets[g_state->tets_queue[0] + new_rotation],
-      g_state->drop_x,
-      g_state->drop_y
+  bool x_collision = tet_collide_x(
+    tets[g_state->tets_queue[0] + new_rotation],
+    g_state->drop_x,
+    g_state->drop_y
   );
 
-  bool lon_collision = tet_collide_lon(
-      tets[g_state->tets_queue[0] + new_rotation],
-      g_state->drop_x,
-      g_state->drop_y
+  bool y_collision = tet_collide_y(
+    tets[g_state->tets_queue[0] + new_rotation],
+    g_state->drop_x,
+    g_state->drop_y
   );
 
-  bool collision = (lat_collision || lon_collision);
+  bool collision = x_collision || y_collision;
 
   /* If collision occurs, redraw original tetromino, and return. */
   if (collision) {
@@ -284,9 +324,11 @@ bool rotate_tet(State *g_state) {
 
   /* Return 1 if collision has occured for handling. */
   return collision;
+
 }
 
-bool move_lat(State *g_state, int direction) {
+bool move_x(State *g_state, int direction) {
+
   /* Calculate new position (0ru to 3ru) */
   int new_position = g_state->drop_x + direction;
 
@@ -296,7 +338,7 @@ bool move_lat(State *g_state, int direction) {
            g_state->drop_y, 0);
 
   /* Check for collisions. */
-  bool collision = tet_collide_lat(
+  bool collision = tet_collide_x(
     state_get_tet(g_state),
     new_position,
     g_state->drop_y
@@ -314,9 +356,11 @@ bool move_lat(State *g_state, int direction) {
 
   /* Return 1 if collision has occured for handling. */
   return collision;
+
 }
 
 void process_queue(State *g_state) {
+
   int q_len = LEN(g_state->tets_queue);
 
   /* Shift all elements left in array by one element. */
@@ -326,11 +370,12 @@ void process_queue(State *g_state) {
 
   /* Push a new "random" tetromino at rotation of 0ru. */
   LAST_OF(g_state->tets_queue) = (rand() % (LEN(tets) / 4)) * 4;
+
 }
 
 bool row_full(coord_t row) {
   for (coord_t x = 0; x < BOARD_WIDTH; ++x) {
-    char ch = mvinch(row, BORDER_WIDTH + x) & A_CHARTEXT;
+    char ch = ((chtype)mvinch(row, BORDER_WIDTH + x)) & A_CHARTEXT;
     if (ch != TET_CH) return 0;
   }
   return 1;
@@ -346,7 +391,7 @@ void fill_row(coord_t row, char ch) {
 void shift_rows(coord_t start_row) {
   for (coord_t row = start_row; row > 1; --row) {
     for (coord_t x = 0; x < BOARD_WIDTH; ++x) {
-      char above = mvinch(row - 1, BORDER_WIDTH + x) & A_CHARTEXT;
+      char above = ((chtype)mvinch(row - 1, BORDER_WIDTH + x)) & A_CHARTEXT;
       addch(BLANK_CH);
       move(row, BORDER_WIDTH + x);
       addch(above);
@@ -375,9 +420,11 @@ bool clear_check_from(State *g_state, int line_y) {
 */
 
   /* From collision point to top of tetromino.
-  y > 0 keeps logic working even if end_y overflows. */
+   * y > 0 keeps logic working even if end_y overflows. */
   while (y > 0 && y > end_y) {
+
     if (row_full(y)) {
+
       /* Make row flash. */
       fill_row(y, '*');
       refresh();
@@ -394,10 +441,11 @@ bool clear_check_from(State *g_state, int line_y) {
       /* Increment score and set clear flag. */
       g_state->score += SCORE_INC;
       did_clear = 1;
-    } else {
-      --y;
-    }
+
+    } else --y;
+
   }
+
   return did_clear;
 }
 
@@ -421,8 +469,8 @@ void draw_score(score_t s, coord_t x, coord_t y) {
 bool alive_loop(State *g_state, int action) {
   coord_t collision = 0;
 
-  /* Call respective function for each action. */
-  /* Each function handles drawing as well as updating. */
+  /* Call respective function for each action.
+   * Each function handles drawing as well as updating. */
   switch (action) {
 
     case ACTION_ROTATE:
@@ -439,15 +487,14 @@ bool alive_loop(State *g_state, int action) {
       /* Drop the tetromino until there's collision. */
       do collision = drop_tet(g_state);
       while (!collision);
-
       break;
 
     case ACTION_MOVE_LEFT:
-      move_lat(g_state, -1);
+      move_x(g_state, -1);
       break;
 
     case ACTION_MOVE_RIGHT:
-      move_lat(g_state, 1);
+      move_x(g_state, 1);
       break;
 
     default:
@@ -458,10 +505,11 @@ bool alive_loop(State *g_state, int action) {
 
   /* Handle collisions. */
   if (collision) {
+
     /* If the collision happens too high on the screen, game over. */
     if (collision - 1 <= TET_H + 1) return 0;
 
-    bool did_clear = clear_check_from(g_state, g_state->drop_y + TET_H);//clear_check_from(g_state, collision - 1);
+    bool did_clear = clear_check_from(g_state, g_state->drop_y + TET_H);
 
     /* If any lines were cleared, draw the updated score. */
     if (did_clear) {
@@ -479,6 +527,7 @@ bool alive_loop(State *g_state, int action) {
 
     /* Place new tetromino. */
     put_tet(g_state);
+
   }
   return 1;
 }
@@ -488,7 +537,11 @@ void game_over_screen(score_t s) {
   move(0, 0);
   printw("GAME OVER\nSCORE %u", s);
   move(2, 0);
+#ifdef __EMSCRIPTEN__
+  printw("Press any key to restart.");
+#else
   printw("Press R to restart or any other key to exit.");
+#endif
 }
 
 void draw_board() {
@@ -512,8 +565,11 @@ void draw_board() {
   }
 }
 
+/* If the target is web, the main function isn't necessary, since we're going
+ * to use a JavaScript version of the main function. */
+#ifndef __EMSCRIPTEN__
 int main() {
-  /* ncurses setup */
+
   initscr();   /* Initialize ncurses. */
   curs_set(0); /* Make the cursor invisible. */
   noecho();    /* Disable drawing of input characters. */
@@ -556,6 +612,7 @@ lbl_restart:
 
   /* Loop the game loop if the game is game. */
   while (GAME_ONGOING) {
+
     char user_input;
 
   lbl_cancel_poll:
@@ -606,6 +663,7 @@ lbl_restart:
       default:
         goto lbl_cancel_poll;
     }
+
   }
 
   /* Show game over screen. */
@@ -629,4 +687,6 @@ lbl_cleanup_and_exit:
   endwin();
 
   return 0;
+
 }
+#endif
